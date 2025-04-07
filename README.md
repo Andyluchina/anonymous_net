@@ -1,4 +1,4 @@
-# Report for PAC: Personalized Anonymous Communication
+# Code repo for PAC: Personalized Anonymous Communication
 
 ## Folder Structure
 
