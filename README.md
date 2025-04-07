@@ -1,23 +1,44 @@
-# report for PAC: Personalized Anonymous Communication
-The CTAuditor folder is for the auditor code
+# Report for PAC: Personalized Anonymous Communication
 
-The CTClient folder is for the client code
+## Folder Structure
 
-The CTCollector folder is for the information and stats collection throughout the protocol process, spawning the client, auditor and collect run time info
+- **CTAuditor**  
+  Contains the auditor code.
 
-The CTPinger is simply a pinging server that periodically checks if the collector is alive
+- **CTClient**  
+  Contains the client code.
 
-This is a system that runs on aws, to get start, you need to have an aws account.
+- **CTCollector**  
+  Handles information and statistics collection throughout the protocol process.  
+  It also spawns the client, auditor, and collects runtime info.
 
-you will first need to get a aws ec2 machine and run aws configure to set up appropriate aws credentials.You also need to make sure go is installed.
+- **CTPinger**  
+  A lightweight pinging server that periodically checks if the collector is alive.
 
-Clone the whole code base and move to the CTCollector folder.
+## Getting Started
 
-simply run
+This system is designed to run on AWS. To begin:
 
-go run main.go 
+1. **Set up AWS:**
+   - Ensure you have an AWS account.
+   - Launch an EC2 instance.
+   - Run `aws configure` on your EC2 to set up AWS credentials.
 
-to start up the CTCollector and it will run the protocol with preset numbers of clients and generate report.json in the folder
+2. **Install Go:**
+   - Make sure the Go programming language is installed on your EC2 instance.
 
+3. **Clone the Repository:**
+   - Clone this repository onto your EC2 machine.
 
+4. **Navigate to the CTCollector folder:**
+   ```bash
+   cd CTCollector
+   ```
 
+5. **Start the Protocol:**
+   - Run the following command:
+     ```bash
+     go run main.go
+     ```
+
+This will start the `CTCollector`, launch the protocol with a preset number of clients, and generate a `report.json` file in the same folder.
