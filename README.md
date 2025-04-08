@@ -42,3 +42,6 @@ This system is designed to run on AWS. To begin:
      ```
 
 This will start the `CTCollector`, launch the protocol with a preset number of clients, and generate a `report.json` file in the same folder.
+
+## locally run
+TO run the protocol locally, check out the FTChainingZKNonInteractive folder and see the readme there. The protocol will run with some logging without any networking or RPCs
