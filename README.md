@@ -31,6 +31,7 @@ This system is intended to run on **AWS EC2** instances.
   - ✅ **Allow HTTP traffic**
 - Once inside the EC2 instance, configure AWS CLI:
   ```bash
+  sudo su
   aws configure
   ```
 
@@ -68,7 +69,6 @@ cd anonymous_net/CTCollector
 
 Run the following as root:
 ```bash
-sudo su
 go run main.go
 ```
 
