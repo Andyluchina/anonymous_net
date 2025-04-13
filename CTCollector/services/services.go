@@ -92,7 +92,7 @@ func SpawnClients(collector *Collector, client_count string, server_ip string, c
 	sudo su
 	cd ~
 	yum install git -y
-	git clone https://github.com/Andyluchina/CTClient
+	git clone https://github.com/ccs2025anonymous/CTClient
 	cd CTClient
 	./main %s %s %s`, server_ip, strconv.Itoa(reveal), collector_ip)
 
@@ -146,7 +146,7 @@ func SpawnAuditor(collector *Collector) string {
 	// Prepare user data script for the instances
 	userData := fmt.Sprintf(`#!/bin/bash
 	sudo yum install -y git
-	git clone https://github.com/Andyluchina/CTAuditor
+	git clone https://github.com/ccs2025anonymous/CTAuditor
 	cd CTAuditor
 	./main %s %s %s %s`, strconv.Itoa(int(collector.RunTasks[collector.CurrentTask].TotalClients)), strconv.Itoa(int(collector.RunTasks[collector.CurrentTask].MaxSitOut)), "80", collector.CollectorIP)
 	userDataEncoded := base64.StdEncoding.EncodeToString([]byte(userData))
@@ -217,7 +217,7 @@ func SpawnPinger(collector *Collector) error {
 	// Prepare user data script for the instances
 	userData := fmt.Sprintf(`#!/bin/bash
 	sudo yum install -y git
-	git clone https://github.com/Andyluchina/CTPinger
+	git clone https://github.com/ccs2025anonymous/CTPinger
 	cd CTPinger
 	./main %s`, collector.AuditorIP)
 	userDataEncoded := base64.StdEncoding.EncodeToString([]byte(userData))
