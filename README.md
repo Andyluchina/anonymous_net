@@ -28,20 +28,32 @@ This system is designed to run on AWS. To begin:
    - Make sure the Go programming language is installed on your EC2 instance.
 
 3. **Clone the Repository:**
-   - Clone this repository onto your EC2 machine, or download it (the anonymization may prevent git clone)
+   - Clone this repository onto your EC2 machine(note that the current link is for viewing only, and use the following command to clone from a anonymous organization):
+   ```bash
+   sudo yum install -y git
+   git clone https://github.com/ccs2025anonymous/anonymous_net
+   ```
 
 4. **Navigate to the CTCollector folder:**
    ```bash
+   cd anonymous_net
    cd CTCollector
    ```
 
 5. **Start the Protocol:**
    - Run the following command:
      ```bash
+     sudo su
      go run main.go
      ```
 
-This will start the `CTCollector`, launch the protocol with a preset number of clients, and generate a `report.json` file in the same folder.
+This will start the `CTCollector`, launch the protocol with 30 clients(with 3 clients sitting out), and generate a `report.json` file in the same folder.
+
+This is for demonstration only, to run with a large number of clients, I would suggest changing the main.go of the CTCollector line 23:
+total_clients := []uint32{30}
+to
+total_clients := []uint32{100, 80, 60, 40, 20}
+Where the system will sequentially run the protocol of these numbers of clients
 
 ## locally run
 TO run the protocol locally, check out the FTChainingZKNonInteractive folder and see the readme there. The protocol will run with some logging without any networking or RPCs
