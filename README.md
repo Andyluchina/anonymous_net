@@ -1,4 +1,4 @@
-# 🛡️ Code Repository for **PAC: Personalized Anonymous Communication**
+# 🛡️ Code Repository for **Praus: Personalized Reveal After Unscripted Shuffling**
 
 ## 📁 Folder Structure
 
