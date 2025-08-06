@@ -260,7 +260,7 @@ func ReadZKDatabase(certauditor *Auditor) ([]byte, error) {
 	return data, nil
 }
 
-func ReportPhase_AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEntry) error {
+func ReportPhase_AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEntry, client_count int, registration_order int) error {
 	// Read the existing data from the database file
 	existingData, err := ReadDatabase(certauditor)
 	if err != nil {
@@ -268,17 +268,94 @@ func ReportPhase_AppendEntryToDatabase(certauditor *Auditor, entry *ReportingEnt
 	}
 
 	// Unmarshal the existing data into a slice of CipherText
-	var databaseCiphertexts Database
-	err = json.Unmarshal(existingData, &databaseCiphertexts)
+	var database Database
+	err = json.Unmarshal(existingData, &database)
+	if err != nil {
+		return err
+	}
+	// fill shufflers with point of zero
+	for i := 0; i < client_count; i++ {
+		entry.Shufflers = append(entry.Shufflers, elgamal.ReturnInfinityPoint())
+	}
+
+	// find client's shuffling public key
+	init_client_pubkey, err := database.Shuffle_PubKeys[registration_order], nil
+
 	if err != nil {
 		return err
 	}
 
+	// encrypt all other entries under this public key
+	for i := 0; i < registration_order; i++ {
+		r_i_prime := elgamal.Generate_Random_Dice_seed(certauditor.Curve)
+		h_r_i_prime, err := elgamal.ECDH_bytes(init_client_pubkey.H_i, r_i_prime)
+		if err != nil {
+			return err
+		}
+
+		g_r_i_prime, err := elgamal.ECDH_bytes(init_client_pubkey.G_i, r_i_prime)
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+
+		database.Entries[i].Cert_times_h_r10, err = EncryptSegments(h_r_i_prime, database.Entries[i].Cert_times_h_r10)
+		if err != nil {
+			return err
+		}
+
+		// updating shuffler info
+		// entry.Shufflers[i], err = elgamal.Encrypt(entry.Shufflers[i], g_r_i_prime)
+		// if err != nil {
+		// 	return err
+		// }
+
+		// // update the shuffler info, this is where I am shuffling everyone else
+		database.Entries[i].Shufflers[registration_order], err = elgamal.Encrypt(database.Entries[i].Shufflers[registration_order], g_r_i_prime)
+		if err != nil {
+			return err
+		}
+	}
+
+	// encrypt this one entry under all other public keys
+	shuffle_pubkeys := database.Shuffle_PubKeys
+	for i := 0; i < registration_order; i++ {
+		r_i_prime := elgamal.Generate_Random_Dice_seed(certauditor.Curve)
+		h_r_i_prime, err := elgamal.ECDH_bytes(shuffle_pubkeys[i].H_i, r_i_prime)
+		if err != nil {
+			return err
+		}
+
+		g_r_i_prime, err := elgamal.ECDH_bytes(shuffle_pubkeys[i].G_i, r_i_prime)
+		if err != nil {
+			log.Fatalf("%v", err)
+			return err
+		}
+
+		/// changing the msg entry
+		entry.Cert_times_h_r10, err = EncryptSegments(h_r_i_prime, entry.Cert_times_h_r10)
+		if err != nil {
+			return err
+		}
+
+		// // updating shuffler info
+		entry.Shufflers[i], err = elgamal.Encrypt(entry.Shufflers[i], g_r_i_prime)
+		if err != nil {
+			return err
+		}
+
+		// update the shuffler info, this is where I am shuffling everyone else
+		// database.Entries[i].Shufflers[registration_order], err = elgamal.Encrypt(database.Entries[i].Shufflers[registration_order], g_r_i_prime)
+		// if err != nil {
+		// 	return err
+		// }
+	}
+
 	// Append the new ciphertexts to the existing array
-	databaseCiphertexts.Entries = append(databaseCiphertexts.Entries, entry)
+	database.Entries = append(database.Entries, entry)
 
 	// Marshal the updated array back to a byte slice
-	updatedData, err := json.Marshal(databaseCiphertexts)
+	updatedData, err := json.Marshal(database)
 	// fmt.Println(updatedData)
 	if err != nil {
 		return err
@@ -1015,6 +1092,7 @@ func (a *Auditor) ZKShuffling_RecordAndVerifyResponses(
 			third_check_right_hand_side, err = elgamal.Encrypt(third_check_right_hand_side, c_i_lambda_i)
 		}
 		// find the public key of the shuffler
+		// log.Println(len(zkdatabase.ZK_info[len(zkdatabase.ZK_info)-1].ShuffleProof.Updated_Shufflers_info))
 		for i := 0; i < len(zkdatabase.ZK_info[len(zkdatabase.ZK_info)-1].ShuffleProof.Updated_Shufflers_info); i++ {
 			updated_shufflers := zkdatabase.ZK_info[len(zkdatabase.ZK_info)-1].ShuffleProof.Updated_Shufflers_info[i]
 			shuffler_keys, err := LocatePublicKeyWithID(updated_shufflers.ID, database.Shuffle_PubKeys)
@@ -1171,4 +1249,16 @@ func LocatePublicKeyWithID(clientID int, ShufflerPublicKeys []*ShufflePubKeys) (
 		}
 	}
 	return nil, errors.New("Shuffler Public Key Not Found")
+}
+
+func EncryptSegments(h []byte, segments [][]byte) ([][]byte, error) {
+	encrypted_segments := make([][]byte, len(segments))
+	for i := 0; i < len(segments); i++ {
+		encrypted, err := elgamal.Encrypt(h, segments[i])
+		if err != nil {
+			return nil, err
+		}
+		encrypted_segments[i] = encrypted
+	}
+	return encrypted_segments, nil
 }

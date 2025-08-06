@@ -617,12 +617,12 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 		return err
 	}
 
-	// check if this is the first shuffle
-	first_shuffle := true
-	if len(database.Shufflers_info) > 0 {
-		// not first shuffle
-		first_shuffle = false
-	}
+	// // check if this is the first shuffle
+	// first_shuffle := false
+	// if len(database.Shufflers_info) > 0 {
+	// 	// not first shuffle
+	// 	first_shuffle = false
+	// }
 
 	//  **** perform actual shuffling
 	R_l_k := make([][][]byte, len(database.Entries))
@@ -630,67 +630,58 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 	for i := 0; i < len(database.Entries); i++ {
 		rk := [][]byte{}
 		// encrypt and append g_r_i_k
-		r_i_k := elgamal.Generate_Random_Dice_seed(reportingClient.Curve)
-		g_r_i_k, err := elgamal.ECDH_bytes(reportingClient.G_shuffle, r_i_k)
-		if err != nil {
-			log.Fatalf("%v", err)
-			return err
-		}
-		// append the g_r_i_k to the entry shufflers
-		database.Entries[i].Shufflers = append(database.Entries[i].Shufflers, g_r_i_k)
-		shared_h_r_i_k, err := elgamal.ECDH_bytes(g_r_i_k, reportingClient.ShuffleKey.Bytes())
-		if err != nil {
-			log.Fatalf("%v", err)
-			return err
-		}
-		/// encrypt the entry again with the shared key
-		database.Entries[i].Cert_times_h_r10, err = EncryptSegments(shared_h_r_i_k, database.Entries[i].Cert_times_h_r10)
-		if err != nil {
-			log.Fatalf("%v", err)
-			return err
-		}
-		// fmt.Println(len(database.Entries[i].Shufflers))
-		if !first_shuffle {
-			/// not the first shuffle, re-randomize the previous shufflers
-			for j := 0; j < len(database.Entries[i].Shufflers)-1; j++ {
-				shuffler_info := database.Shufflers_info[j]
-				keys, err := LocatePublicKeyWithID(shuffler_info.ID, database.Shuffle_PubKeys)
-				if err != nil {
-					log.Fatalf("%v", err)
+		for j := 0; j < len(database.Entries[i].Shufflers); j++ {
+			if j == reportingClient.ID {
+				if !bytes.Equal(database.Shuffle_PubKeys[j].H_i, reportingClient.H_shuffle) {
+					log.Fatalf("public key does not match")
 					return err
 				}
-				r_i_prime := elgamal.Generate_Random_Dice_seed(reportingClient.Curve)
-				rk = append(rk, r_i_prime)
-				g_r_i_prime, err := elgamal.ECDH_bytes(keys.G_i, r_i_prime)
-				if err != nil {
-					log.Fatalf("%v", err)
+				if len(database.Entries[i].Shufflers) != len(database.Shuffle_PubKeys) {
+					log.Fatalf("mismatched number of shufflers and public keys")
 					return err
 				}
-				/// changing the shuffler entry
-				order, err := LocateShuffleOrderWithID(shuffler_info.ID, database.Shufflers_info)
-				if err != nil {
-					log.Fatalf("%v", err)
-					return nil
-				}
-				database.Entries[i].Shufflers[order], err = elgamal.Encrypt(database.Entries[i].Shufflers[order], g_r_i_prime)
-				if err != nil {
-					log.Fatalf("%v", err)
-					return err
-				}
-				/// changing the msg entry
-				h_r_i_prime, err := elgamal.ECDH_bytes(keys.H_i, r_i_prime)
-				if err != nil {
-					log.Fatalf("%v", err)
-					return err
-				}
-				database.Entries[i].Cert_times_h_r10, err = EncryptSegments(h_r_i_prime, database.Entries[i].Cert_times_h_r10)
-				if err != nil {
-					log.Fatalf("%v", err)
-					return err
-				}
+				// log.Println("skipping own key re-randomization")
+				// continue
+			}
+			// shuffler_info := database.Shufflers_info[j]
+			keys := database.Shuffle_PubKeys[j]
+			if err != nil {
+				log.Fatalf("%v", err)
+				return err
+			}
+			r_i_prime := elgamal.Generate_Random_Dice_seed(reportingClient.Curve)
+			rk = append(rk, r_i_prime)
+			g_r_i_prime, err := elgamal.ECDH_bytes(keys.G_i, r_i_prime)
+			if err != nil {
+				log.Fatalf("%v", err)
+				return err
+			}
+			/// changing the shuffler entry
+			// order, err := LocateShuffleOrderWithID(shuffler_info.ID, database.Shufflers_info)
+			order := j
+			if err != nil {
+				log.Fatalf("%v", err)
+				return nil
+			}
+			database.Entries[i].Shufflers[order], err = elgamal.Encrypt(database.Entries[i].Shufflers[order], g_r_i_prime)
+			if err != nil {
+				log.Fatalf("%v", err)
+				return err
+			}
+			/// changing the msg entry
+			h_r_i_prime, err := elgamal.ECDH_bytes(keys.H_i, r_i_prime)
+			if err != nil {
+				log.Fatalf("%v", err)
+				return err
+			}
+			database.Entries[i].Cert_times_h_r10, err = EncryptSegments(h_r_i_prime, database.Entries[i].Cert_times_h_r10)
+			if err != nil {
+				log.Fatalf("%v", err)
+				return err
 			}
 		}
-		rk = append(rk, r_i_k)
+		// }
+		// rk = append(rk, r_i_k)
 		R_l_k[i] = rk
 	}
 	// fmt.Println("Dimensions of 3D slice:")
@@ -700,12 +691,21 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 	// 		fmt.Printf("  Dimension 2, Slice %d has %d elements\n", j+1, len(oneDSlice))
 	// 	}
 	// }
+	// fmt.Println("Dimensions of 3D slice:")
 	/// append the client info
-	client_info := &auditor.ShuffleRecords{
-		ID: reportingClient.ID,
-	}
+	// client_info := &auditor.ShuffleRecords{
+	// 	ID: reportingClient.ID,
+	// }
 
-	database.Shufflers_info = append(database.Shufflers_info, client_info)
+	client_count := len(database.Entries)
+	database.Shufflers_info = []*auditor.ShuffleRecords{}
+	for i := 0; i < client_count; i++ {
+		// should just include everyone
+		client_info := &auditor.ShuffleRecords{
+			ID: i,
+		}
+		database.Shufflers_info = append(database.Shufflers_info, client_info)
+	}
 
 	// *** zero knowledge shuffling proof
 	inverse_permutationMatrix, err := zklib.InversePermutationMatrix(permutationMatrix)
@@ -978,8 +978,6 @@ func ClientShuffle(certauditor *auditor.Auditor, reportingClient *auditor.Client
 
 	/// generate Z_ks **** hard part
 	Z_ks := [][]byte{}
-	// fmt.Println(len(R_l_k))
-	// fmt.Println(len(R_l_k[0]))
 	// fmt.Println(len(Bs))
 	for k := 0; k < len(database.Shufflers_info); k++ {
 		Z_k := zklib.SetBigIntWithBytes(Bs[k])
@@ -1230,14 +1228,14 @@ func randomInt(n int) int {
 	return int(binary.BigEndian.Uint64(buf[:]) % uint64(n))
 }
 
-func LocateShuffleOrderWithID(clientID int, Shufflers []*auditor.ShuffleRecords) (int, error) {
-	for i := 0; i < len(Shufflers); i++ {
-		if clientID == Shufflers[i].ID {
-			return i, nil
-		}
-	}
-	return -1, errors.New("Shuffle order not found")
-}
+// func LocateShuffleOrderWithID(clientID int, Shufflers []*auditor.ShuffleRecords) (int, error) {
+// 	for i := 0; i < len(Shufflers); i++ {
+// 		if clientID == Shufflers[i].ID {
+// 			return i, nil
+// 		}
+// 	}
+// 	return -1, errors.New("Shuffle order not found")
+// }
 
 func ClientReveal(certauditor *auditor.Auditor, revealingClient *auditor.Client) *auditor.Database {
 	// retrieve everything in the database
@@ -1260,7 +1258,7 @@ func ClientReveal(certauditor *auditor.Auditor, revealingClient *auditor.Client)
 		Keys:       [][]byte{},
 	}
 
-	order, err := LocateShuffleOrderWithID(revealingClient.ID, database.Shufflers_info)
+	// order, err := LocateShuffleOrderWithID(revealingClient.ID, database.Shufflers_info)
 	if err != nil {
 		log.Fatalf("%v", err)
 		return nil
@@ -1278,7 +1276,7 @@ func ClientReveal(certauditor *auditor.Auditor, revealingClient *auditor.Client)
 			fmt.Print(revealingClient.ID)
 			fmt.Println(" found entry")
 
-			g_first_term_with_shuffle_key, err := elgamal.ECDH_bytes(database.Entries[i].Shufflers[order], revealingClient.ShuffleKey.Bytes())
+			g_first_term_with_shuffle_key, err := elgamal.ECDH_bytes(database.Entries[i].Shufflers[revealingClient.ID], revealingClient.ShuffleKey.Bytes())
 			if err != nil {
 				log.Fatalf("%v", err)
 				return nil
@@ -1298,7 +1296,7 @@ func ClientReveal(certauditor *auditor.Auditor, revealingClient *auditor.Client)
 			revealRecords.Keys = append(revealRecords.Keys, reveal_value_self)
 		} else {
 			// it is not
-			reveal_value_non_self, err := elgamal.ECDH_bytes(database.Entries[i].Shufflers[order], revealingClient.ShuffleKey.Bytes())
+			reveal_value_non_self, err := elgamal.ECDH_bytes(database.Entries[i].Shufflers[revealingClient.ID], revealingClient.ShuffleKey.Bytes())
 			if err != nil {
 				log.Fatalf("%v", err)
 				return nil
@@ -1443,7 +1441,7 @@ func ClientReportDecryptedSecret(certauditor *auditor.Auditor, client *auditor.C
 		return nil, err
 	}
 	/// find the missing client's shuffling order
-	missingClientShuffleOrder, err := LocateShuffleOrderWithID(missingClientID, database.Shufflers_info)
+	// missingClientShuffleOrder, err := LocateShuffleOrderWithID(missingClientID, database.Shufflers_info)
 	if err != nil {
 		log.Fatalf("client Shuffle order not found %v", err)
 		return nil, err
@@ -1468,7 +1466,7 @@ func ClientReportDecryptedSecret(certauditor *auditor.Auditor, client *auditor.C
 	res_d_j_i := [][]byte{}
 	for i := 0; i < len(database.Entries); i++ {
 		/// compute while treating the secrete piece as a piece
-		d_ji, err := elgamal.ECDH_bytes(database.Entries[i].Shufflers[missingClientShuffleOrder], decrypted_y)
+		d_ji, err := elgamal.ECDH_bytes(database.Entries[i].Shufflers[missingClientID], decrypted_y)
 		if err != nil {
 			log.Fatalf("secrete piece compute issue %v", err)
 			return nil, err

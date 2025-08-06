@@ -23,6 +23,7 @@ func main() {
 	secret_pieces := uint32(numClients - 1)
 	threshold := uint32(8)
 	clients_sit_out := 1
+	number_of_shufflers := 1
 	CertAuditor := auditor.NewAuditor(database_name, zkdatabase_name, curve, secret_pieces, threshold, curves.P256())
 	CertAuditor.InitializeDatabase()
 	fmt.Println("Auditer Initialized, Enter reporting phase")
@@ -35,7 +36,7 @@ func main() {
 		client.RegisterShuffleKeyWithAduitor(clients[i], CertAuditor)
 	}
 	// shuffle client order to make sure that the protocol works
-	ShuffleClient(clients)
+	// ShuffleClient(clients)
 
 	for i := 0; i < numClients; i++ {
 		entry, err := client.CreateInitialEntry(clients[i])
@@ -43,13 +44,13 @@ func main() {
 			fmt.Println(err)
 			return
 		}
-		auditor.ReportPhase_AppendEntryToDatabase(CertAuditor, entry)
+		auditor.ReportPhase_AppendEntryToDatabase(CertAuditor, entry, numClients, i)
 		//// client shares the secrete in a encrypted way
 		client.SecreteShare(CertAuditor, clients[i])
 	}
 	fmt.Println("Reporting phase complete, Enter shuffling phase")
 	//shuffling stage
-	for i := 0; i < numClients; i++ {
+	for i := 0; i < number_of_shufflers; i++ {
 		////***** preparing for zk proof
 		err := CertAuditor.PopulateZKInfo(clients[i])
 		if err != nil {
