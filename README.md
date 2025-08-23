@@ -106,4 +106,4 @@ To run the protocol **locally** (without networking/RPC):
 This version runs with **local logging only** and is useful for lightweight debugging and testing.
 
 ## Network condition recovery
-Sometimes, certain aws machines may experience some issues as you launch too many. If such issue has caused the auditor come to a halt, please shutdown all running instance except the collector, and rerun the collector. Any experiments that have completed will have their record written into report.json, please save a copy
+Sometimes, certain aws machines may experience some issues as you launch too many. If such an issue has caused the auditor to come to a halt, please shut down all running instances except the collector, and rerun the collector. Any experiments that have been completed will have their record written into report.json, please save a copy
