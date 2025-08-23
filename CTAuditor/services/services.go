@@ -732,7 +732,7 @@ func (certauditor *CTLogCheckerAuditor) ReportInitialEntrySecreteShare(req *data
 
 	WriteRevealInfoToDatabase(certauditor, &database)
 
-	if len(database.Entries) == int(certauditor.TotalClients) {
+	if len(database.Entries) == int(certauditor.TotalClients) && len(database.SecreteShareMap) == int(certauditor.TotalClients) {
 		fmt.Println("state changed to shuffle")
 		certauditor.CurrentState = Shuffle
 		// certauditor.CurrentShuffler = -1
