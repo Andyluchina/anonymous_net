@@ -92,7 +92,7 @@ func SpawnClients(collector *Collector, client_count string, server_ip string, c
 	sudo su
 	cd ~
 	yum install git -y
-	git clone https://github.com/Andyluchina/CTClient
+	git clone https://github.com/usenix26anonymous/CTClient
 	cd CTClient
 	nohup ./main %s %s %s %s > nohup.txt 2>&1 &`, server_ip, strconv.Itoa(reveal), collector_ip, strconv.Itoa(shuffle_under_k_keys))
 
@@ -159,7 +159,7 @@ func SpawnAuditor(collector *Collector) string {
 	userData := fmt.Sprintf(`#!/bin/bash
 	sudo yum install -y git
 	sudo su
-	git clone https://github.com/Andyluchina/CTAuditor
+	git clone https://github.com/usenix26anonymous/CTAuditor
 	cd CTAuditor
 	> nohup.txt && nohup ./main %s %s %s %s %s > nohup.txt 2>&1 &`, strconv.Itoa(int(collector.RunTasks[collector.CurrentTask].TotalClients)), strconv.Itoa(int(collector.RunTasks[collector.CurrentTask].MaxSitOut)), "80", collector.CollectorIP, strconv.Itoa(int(collector.RunTasks[collector.CurrentTask].Shuffler)))
 	userDataEncoded := base64.StdEncoding.EncodeToString([]byte(userData))
@@ -230,7 +230,7 @@ func SpawnPinger(collector *Collector) error {
 	// Prepare user data script for the instances
 	userData := fmt.Sprintf(`#!/bin/bash
 	sudo yum install -y git
-	git clone https://github.com/Andyluchina/CTPinger
+	git clone https://github.com/usenix26anonymous/CTPinger
 	cd CTPinger
 	./main %s`, collector.AuditorIP)
 	userDataEncoded := base64.StdEncoding.EncodeToString([]byte(userData))
