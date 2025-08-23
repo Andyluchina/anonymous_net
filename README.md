@@ -13,7 +13,7 @@
   It also spawns the client, auditor, and collects runtime metrics.
 
 - **`CTPinger/`**  
-  A lightweight server that periodically **pings the collector** to check liveness.
+  A lightweight server that periodically **pings the auditor** to check liveness, mostly for debugging.
 
 ---
 
@@ -52,7 +52,7 @@ sudo yum install -y go
 
 ```bash
 sudo yum install -y git
-git clone https://github.com/ccs2025anonymous/anonymous_net
+git clone https://github.com/usenix26anonymous/anonymous_net
 ```
 
 ---
@@ -74,7 +74,7 @@ go run main.go
 
 This will:
 - Start the **CTCollector**
-- Launch the protocol with **30 clients** (with 3 sitting out)
+- Launch the protocol with **20 clients** (with 2 sitting out), this is the setup with 1 shuffler and shuffle under 10 keys 
 - Generate a `report.json` file in the current folder
 
 ---
@@ -84,7 +84,7 @@ This will:
 To simulate more clients, edit the following line in `main.go` (around line 23):
 
 ```go
-total_clients := []uint32{30}
+total_clients := []uint32{20}
 ```
 
 Replace it with:
