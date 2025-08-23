@@ -79,20 +79,22 @@ This will:
 
 ---
 
-### 🔧 Running with More Clients
+### 🔧 Running with More Settings
 
-To simulate more clients, edit the following line in `main.go` (around line 23):
+To run under a wide variety of settings, edit the following line in `main.go` (around line 23):
 
 ```go
-total_clients := []uint32{20}
+  	total_clients := []uint32{20}
+	number_of_shufflers := []uint32{1}
+	number_of_keys_shufflers_use := []uint32{10}
+	sitout_percent := float64(0.1)
 ```
 
-Replace it with:
+Replace it with for example more clients:
 ```go
 total_clients := []uint32{100, 80, 60, 40, 20}
 ```
-
-This will **sequentially run** the protocol with the specified client counts.
+Note that the system will run ***all combinations*** of these settings
 
 ---
 
