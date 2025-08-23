@@ -5,6 +5,7 @@ import (
 	"CTLogchecker/ClientApp/services"
 	"crypto/ecdh"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -38,6 +39,10 @@ func main() {
 
 	server_address := args[0]
 	collector_address := args[2]
+	shuffler_under_k_keys, err := strconv.Atoi(args[3])
+	if err != nil {
+		panic(err)
+	}
 	curve := ecdh.P256()
 	network_interface, err := rpc.DialHTTP("tcp", server_address)
 	if err != nil {
@@ -64,6 +69,7 @@ func main() {
 	client.MyIP = string(ip)
 	// fmt.Println(client.ReportingValue)
 	client.Shamir_curve = curves.P256()
+	client.ShuffleUnderKeys = shuffler_under_k_keys
 
 	stats := datastruct.ClientStats{
 		Entry: client.ReportingValue,
@@ -80,16 +86,55 @@ func main() {
 
 	register_successful := false
 
-	for !register_successful {
-		err = network_interface.Call("CTLogCheckerAuditor.RegisterClient", req, &reply)
+	dial := func() *rpc.Client {
+		c, err := rpc.Dial("tcp", server_address)
 		if err != nil {
-			// log.Fatal("arith error:", err)
+			log.Printf("dial to %s failed: %v", server_address, err)
+			return nil
 		}
-		if reply.Status {
-			register_successful = true
+		return c
+	}
+
+	for !register_successful {
+		// ensure we have a live client
+		if network_interface == nil {
+			network_interface = dial()
+			if network_interface == nil { // couldn't connect; retry immediately
+				continue
+			}
 		}
 
+		timeout := 30 * time.Second
+
+		done := make(chan *rpc.Call, 1)
+		call := network_interface.Go("CTLogCheckerAuditor.RegisterClient", req, &reply, done)
+
+		select {
+		case res := <-call.Done:
+			if res.Error == nil {
+				if reply.Status {
+					log.Printf("Registering OK")
+					register_successful = true
+				} else {
+					log.Printf("Registering responded but not accepted (Status=false); retrying")
+					// immediate retry with same connection
+				}
+			} else if errors.Is(res.Error, rpc.ErrShutdown) {
+				log.Printf("Registering failed: connection is shut down; redialing %s", server_address)
+				_ = network_interface.Close()
+				network_interface = nil // force redial next iteration
+			} else {
+				log.Printf("Registering failed: %v (retrying)", res.Error)
+				// immediate retry with same connection
+			}
+
+		case <-time.After(timeout):
+			log.Printf("Registering timed out after %s; redialing %s", timeout, server_address)
+			_ = network_interface.Close() // aborts in-flight call (it will finish with ErrShutdown internally)
+			network_interface = nil       // force redial next iteration
+		}
 	}
+
 	// err = network_interface.Call("CTLogCheckerAuditor.RegisterClient", req, &reply)
 	// if err != nil {
 	// 	log.Fatal("arith error:", err)
@@ -193,66 +238,15 @@ func main() {
 	rpc.Register(client)
 
 	shuffle_completed := false
-
+	fmt.Println("Starting Shuffle Phase for client ", client.ID)
 	for !shuffle_completed {
 		AcceptReq()
 		if client.ShuffleTime > 0 {
 			shuffle_completed = true
+		} else {
+			fmt.Println("accepted a request to shuffle but somehow failed ", client.ID)
 		}
 	}
-	// accquire_lock := false
-
-	// shuffle_accquire_lock_req := datastruct.ShufflePhaseAccquireLockRequest{
-	// 	ShufflerID: client.ID,
-	// }
-
-	// var shuffle_accquire_lock_reply datastruct.ShufflePhaseAccquireLockReply
-	// for !accquire_lock {
-	// 	err = network_interface.Call("CTLogCheckerAuditor.ShufflePhaseAccquireLock", shuffle_accquire_lock_req, &shuffle_accquire_lock_reply)
-	// 	if err != nil {
-	// 		log.Fatal("shuffle call error", err)
-	// 	}
-	// 	if shuffle_accquire_lock_reply.Status {
-	// 		accquire_lock = true
-	// 		fmt.Println("lock acquired ", client.ID)
-	// 	}
-	// }
-
-	// shuffle_accquire_lock_down, err := json.Marshal(shuffle_accquire_lock_reply)
-	// if err != nil {
-	// 	log.Fatalf("Error serializing to JSON: %v", err)
-	// }
-	// stats.DownloadBytes += len(shuffle_accquire_lock_down)
-	// /// perform the shuffle
-	// var shuffle_res_reply datastruct.ShufflePhasePerformShuffleResultReply
-	// // fmt.Println(shuffle_accquire_lock_reply.Database)
-
-	// shuffle_start := time.Now()
-
-	// shuffle_res_req, err := client.ClientShuffle(shuffle_accquire_lock_reply.Database)
-
-	// shuffle_elapsed := time.Since(shuffle_start) // Calculate elapsed time
-	// shuffle_elapsedSeconds := shuffle_elapsed.Seconds()
-	// stats.ShuffleTime = shuffle_elapsedSeconds
-	// if err != nil {
-	// 	log.Fatal("shuffle error:", err)
-	// }
-	// fmt.Println("Shuffling client", shuffle_res_req.ShufflerID)
-	// /// upload the updated database and zk proofs
-	// err = network_interface.Call("CTLogCheckerAuditor.ShufflePhasePerformShuffleResult", shuffle_res_req, &shuffle_res_reply)
-	// shuffle_res_req_up, err := json.Marshal(shuffle_res_req)
-	// if err != nil {
-	// 	log.Fatalf("Error serializing to JSON: %v", err)
-	// }
-	// stats.UploadBytes += len(shuffle_res_req_up)
-	// /// getting a ack from the auditor
-	// if err != nil {
-	// 	log.Fatal("network error:", err)
-	// }
-
-	// if !shuffle_res_reply.Status {
-	// 	panic("shuffle tempered with")
-	// }
 
 	fmt.Println("Finished Shuffling")
 
@@ -285,7 +279,7 @@ func main() {
 		// perform reveal
 		reveal_start := time.Now()
 
-		reveal_res_req, err := services.ClientReveal(client, reveal_reply.Database, reveal_reply.ZK_info)
+		reveal_res_req, err := services.ClientReveal(client, reveal_reply.Database, reveal_reply.ZK_info, reveal_reply.AuditorZKInfo)
 
 		reveal_elapsed := time.Since(reveal_start) // Calculate elapsed time
 		reveal_elapsedSeconds := reveal_elapsed.Seconds()
@@ -388,6 +382,8 @@ func main() {
 	stats.ShuffleTime = client.ShuffleTime
 	stats.DownloadBytesShuffle = client.ShuffleDownload
 	stats.UploadBytesShuffle = client.ShuffleUpload
+	stats.AuditorZKCheckTime = client.AuditorZKCheckTime
+
 	// report the stats to the collector
 	collector_interface, err := rpc.DialHTTP("tcp", collector_address)
 

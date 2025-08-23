@@ -3,6 +3,7 @@ package main
 import (
 	"CTLogchecker/AuditorApp/datastruct"
 	"CTLogchecker/AuditorApp/services"
+	"crypto/ecdh"
 	"fmt"
 	"log"
 	"net"
@@ -55,12 +56,19 @@ func main() {
 
 	collector_address := args[3]
 
+	shufflers, err := strconv.Atoi(args[4])
+	if err != nil {
+		fmt.Printf("Error: The fifth argument '%s' is not a valid integer.\n", args[4])
+		return
+	}
+
 	threshold := uint32(numClients - clients_sit_out - 1)
 
 	CTLogAuditor := new(services.CTLogCheckerAuditor)
 	CTLogAuditor.CollectorAddress = collector_address
 	CTLogAuditor.ShuffleDatabase = "database.json"
 	CTLogAuditor.ZKDatabase = "zkdatabase.json"
+	CTLogAuditor.AuditorZKDatabase = "auditorzkdatabase.json"
 	CTLogAuditor.TotalClients = uint32(numClients)
 	CTLogAuditor.RevealThreshold = threshold
 	CTLogAuditor.MaxSitOut = uint32(clients_sit_out)
@@ -71,6 +79,8 @@ func main() {
 	CTLogAuditor.Shamir_pieces = uint32(numClients - 1)
 	CTLogAuditor.Shamir_curve = curves.P256()
 	CTLogAuditor.CurrentFaultToleranceCount = 0
+	CTLogAuditor.Curve = ecdh.P256()
+	CTLogAuditor.TotalShuffers = uint32(shufflers)
 
 	// initialize PerClientCPU
 	CTLogAuditor.PerClientCPU = []datastruct.AuditorClientCPUReport{}

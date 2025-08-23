@@ -1,0 +1,4 @@
+building a cross piled x86 image
+
+go clean
+GOOS=linux GOARCH=amd64 go build main.go

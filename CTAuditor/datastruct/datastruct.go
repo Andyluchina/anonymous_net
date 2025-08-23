@@ -43,6 +43,15 @@ type ZKRecords struct {
 	DecryptionProof DecryptionProofRecord
 }
 
+type AuditorZKDatabase struct {
+	ZK_info []*ZKAuditorRecords
+}
+
+type ZKAuditorRecords struct {
+	ShufflerID              int
+	AuditorEncryptionRecord AuditorEncryptionProofRecord
+}
+
 type DecryptionProofRecord struct {
 	RG_X       [][]byte
 	RG_Y       [][]byte
@@ -84,6 +93,23 @@ type ShuffleProofRecord struct {
 	SmallZ  *big.Int
 	Z_ks    [][]byte
 	Z_prime *big.Int
+}
+
+type AuditorEncryptionProofRecord struct {
+	// recorded before shuffle
+	EntriesBeforeShuffle    [][][]byte
+	RSA_subgroup_generators []*big.Int
+	// commitment
+	EntriesAfterShuffle    [][][]byte
+	Commitments            []*big.Int
+	Big_Vs                 [][]byte
+	Updated_Shufflers_info []*ShuffleRecords
+	//challenges
+	ChallengesLambda [][]byte
+	// Responses
+	Fs     []*big.Int
+	SmallZ *big.Int
+	Z_ks   [][]byte
 }
 
 type ShuffleRecords struct {
@@ -182,9 +208,10 @@ type RevealPhaseAcquireDatabaseRequest struct {
 }
 
 type RevealPhaseAcquireDatabaseReply struct {
-	Status   bool
-	Database Database
-	ZK_info  []*ZKRecords
+	Status        bool
+	Database      Database
+	ZK_info       []*ZKRecords
+	AuditorZKInfo []*ZKAuditorRecords
 }
 
 type RevealPhaseReportRevealRequest struct {
@@ -219,18 +246,20 @@ type FaultTolerancePhaseReportResultReply struct {
 type AuditorReport struct {
 	TotalClients      uint32
 	MaxSitOut         uint32
+	Shufflers         uint32
 	CalculatedEntries [][][]byte
 	TotalRunTime      float64
 	PerClientCPU      []AuditorClientCPUReport
 }
 
 type AuditorClientCPUReport struct {
-	ID                   int
-	InitialReportingTime float64
-	SecreteSharing       float64
-	ShuffleTime          float64
-	RevealTime           float64
-	FaultToleranceTime   float64
+	ID                    int
+	InitialReportingTime  float64
+	SecreteSharing        float64
+	ShuffleTime           float64
+	RevealTime            float64
+	FaultToleranceTime    float64
+	AuditorEncryptionTime float64
 }
 
 type ReportStatsReply struct {
@@ -245,6 +274,7 @@ type ShuffleInitReply struct {
 }
 
 type ShufflePhaseAuditorRequest struct {
+	Status   int
 	Database Database
 }
 

@@ -40,6 +40,21 @@ func GeneratePermutationMatrix(n int) [][]int {
 	return matrix
 }
 
+func GenerateIdentityMatrix(n int) [][]int {
+	// Initialize the matrix with zeros.
+	matrix := make([][]int, n)
+	for i := range matrix {
+		matrix[i] = make([]int, n)
+	}
+
+	// Fill the diagonal with 1s.
+	for i := 0; i < n; i++ {
+		matrix[i][i] = 1
+	}
+
+	return matrix
+}
+
 // securePerm generates a cryptographically secure permutation of n integers.
 func securePerm(n int) []int {
 	perm := make([]int, n)

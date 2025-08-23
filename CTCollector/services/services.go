@@ -59,7 +59,7 @@ func extractInstanceIDsFromJSON(jsonData string) ([]string, error) {
 	return ids, nil
 }
 
-func SpawnClients(collector *Collector, client_count string, server_ip string, collector_ip string, reveal int) error {
+func SpawnClients(collector *Collector, client_count string, server_ip string, collector_ip string, reveal int, shuffle_under_k_keys int) error {
 	region := "us-east-1"
 	instanceType := "t2.small"
 	securityGroupID := "sg-03c26d167c72f8254"
@@ -92,14 +92,26 @@ func SpawnClients(collector *Collector, client_count string, server_ip string, c
 	sudo su
 	cd ~
 	yum install git -y
-	git clone https://github.com/ccs2025anonymous/CTClient
+	git clone https://github.com/Andyluchina/CTClient
 	cd CTClient
-	./main %s %s %s`, server_ip, strconv.Itoa(reveal), collector_ip)
+	nohup ./main %s %s %s %s > nohup.txt 2>&1 &`, server_ip, strconv.Itoa(reveal), collector_ip, strconv.Itoa(shuffle_under_k_keys))
 
 	userDataEncoded := base64.StdEncoding.EncodeToString([]byte(client_script_user_data))
 	// Start EC2 instances
 	fmt.Println("Launching instances...")
-	launchOutput, err := awsCLI("ec2", "run-instances", "--image-id", amiID, "--instance-type", instanceType, "--count", count, "--key-name", collector.KeyName, "--security-group-ids", securityGroupID, "--subnet-id", subnetID, "--user-data", userDataEncoded, "--region", region)
+	launchOutput, err := awsCLI(
+		"ec2", "run-instances",
+		"--image-id", amiID,
+		"--instance-type", instanceType,
+		"--count", count,
+		"--key-name", collector.KeyName,
+		"--security-group-ids", securityGroupID,
+		"--subnet-id", subnetID,
+		"--user-data", userDataEncoded,
+		"--credit-specification", "CpuCredits=unlimited",
+		"--region", region,
+	)
+	// launchOutput, err := awsCLI("ec2", "run-instances", "--image-id", amiID, "--instance-type", instanceType, "--count", count, "--key-name", collector.KeyName, "--security-group-ids", securityGroupID, "--subnet-id", subnetID, "--user-data", userDataEncoded, "--region", region)
 	if err != nil {
 		fmt.Println("Error launching instances:", err)
 		return err
@@ -146,13 +158,14 @@ func SpawnAuditor(collector *Collector) string {
 	// Prepare user data script for the instances
 	userData := fmt.Sprintf(`#!/bin/bash
 	sudo yum install -y git
-	git clone https://github.com/ccs2025anonymous/CTAuditor
+	sudo su
+	git clone https://github.com/Andyluchina/CTAuditor
 	cd CTAuditor
-	./main %s %s %s %s`, strconv.Itoa(int(collector.RunTasks[collector.CurrentTask].TotalClients)), strconv.Itoa(int(collector.RunTasks[collector.CurrentTask].MaxSitOut)), "80", collector.CollectorIP)
+	> nohup.txt && nohup ./main %s %s %s %s %s > nohup.txt 2>&1 &`, strconv.Itoa(int(collector.RunTasks[collector.CurrentTask].TotalClients)), strconv.Itoa(int(collector.RunTasks[collector.CurrentTask].MaxSitOut)), "80", collector.CollectorIP, strconv.Itoa(int(collector.RunTasks[collector.CurrentTask].Shuffler)))
 	userDataEncoded := base64.StdEncoding.EncodeToString([]byte(userData))
 
 	// Start EC2 instances
-	launchOutput, err := awsCLI("ec2", "run-instances", "--image-id", amiID, "--instance-type", instanceType, "--count", "1", "--key-name", collector.KeyName, "--security-group-ids", securityGroupID, "--subnet-id", subnetID, "--user-data", userDataEncoded, "--region", region)
+	launchOutput, err := awsCLI("ec2", "run-instances", "--image-id", amiID, "--instance-type", instanceType, "--count", "1", "--key-name", collector.KeyName, "--security-group-ids", securityGroupID, "--credit-specification", "CpuCredits=unlimited", "--subnet-id", subnetID, "--user-data", userDataEncoded, "--region", region)
 
 	if err != nil {
 		fmt.Println("Error launching instances:", err)
@@ -217,13 +230,13 @@ func SpawnPinger(collector *Collector) error {
 	// Prepare user data script for the instances
 	userData := fmt.Sprintf(`#!/bin/bash
 	sudo yum install -y git
-	git clone https://github.com/ccs2025anonymous/CTPinger
+	git clone https://github.com/Andyluchina/CTPinger
 	cd CTPinger
 	./main %s`, collector.AuditorIP)
 	userDataEncoded := base64.StdEncoding.EncodeToString([]byte(userData))
 
 	// Start EC2 instances
-	launchOutput, err := awsCLI("ec2", "run-instances", "--image-id", amiID, "--instance-type", instanceType, "--count", "1", "--key-name", collector.KeyName, "--security-group-ids", securityGroupID, "--subnet-id", subnetID, "--user-data", userDataEncoded, "--region", region)
+	launchOutput, err := awsCLI("ec2", "run-instances", "--image-id", amiID, "--instance-type", instanceType, "--count", "1", "--key-name", collector.KeyName, "--security-group-ids", securityGroupID, "--credit-specification", "CpuCredits=unlimited", "--subnet-id", subnetID, "--user-data", userDataEncoded, "--region", region)
 
 	if err != nil {
 		fmt.Println("Error launching instances:", err)
@@ -284,12 +297,16 @@ func ExecuteCurrentTask(collector *Collector) error {
 	time.Sleep(20 * time.Second)
 	total_clients := collector.RunTasks[collector.CurrentTask].TotalClients
 	sitout := collector.RunTasks[collector.CurrentTask].MaxSitOut
-	err = SpawnClients(collector, strconv.Itoa(int(total_clients-sitout)), auditor_ip, collector.CollectorIP, 1)
+	shuffle_under_k_keys := int(collector.RunTasks[collector.CurrentTask].Shuffler_under_k_keys)
+	err = SpawnClients(collector, strconv.Itoa(int(total_clients-sitout)), auditor_ip, collector.CollectorIP, 1, shuffle_under_k_keys)
 	if err != nil {
 		panic(err)
 	}
 
-	err = SpawnClients(collector, strconv.Itoa(int(sitout)), auditor_ip, collector.CollectorIP, 0)
+	if sitout == 0 {
+		return nil
+	}
+	err = SpawnClients(collector, strconv.Itoa(int(sitout)), auditor_ip, collector.CollectorIP, 0, shuffle_under_k_keys)
 	if err != nil {
 		panic(err)
 	}
@@ -334,9 +351,11 @@ func (collector *Collector) ReportStatsClient(req *datastruct.ClientStats, reply
 
 	if len(collector.RunStats[collector.CurrentTask].Clients) == int(collector.RunTasks[collector.CurrentTask].TotalClients) && collector.RunStats[collector.CurrentTask].Auditor.TotalClients != 0 {
 		// write collected data to a file
+		collector.RunStats[collector.CurrentTask].Auditor.Shufflers = collector.RunTasks[collector.CurrentTask].Shuffler
+		collector.RunStats[collector.CurrentTask].Auditor.ShufflerUnderKKeys = collector.RunTasks[collector.CurrentTask].Shuffler_under_k_keys
+		fmt.Println("Logging shufflers:", collector.RunTasks[collector.CurrentTask].Shuffler)
 		WriteRevealInfoToDatabase(collector.RunStats)
 		Cleanup(collector)
-
 		if collector.CurrentTask == len(collector.RunTasks)-1 {
 			// all task completed
 			// exit
@@ -365,6 +384,9 @@ func (collector *Collector) ReportStatsAuditor(req *datastruct.AuditorReport, re
 
 	if len(collector.RunStats[collector.CurrentTask].Clients) == int(collector.RunTasks[collector.CurrentTask].TotalClients) {
 		// write collected data to a file
+		collector.RunStats[collector.CurrentTask].Auditor.Shufflers = collector.RunTasks[collector.CurrentTask].Shuffler
+		collector.RunStats[collector.CurrentTask].Auditor.ShufflerUnderKKeys = collector.RunTasks[collector.CurrentTask].Shuffler_under_k_keys
+		fmt.Println("Logging shufflers:", collector.RunTasks[collector.CurrentTask].Shuffler)
 		WriteRevealInfoToDatabase(collector.RunStats)
 		Cleanup(collector)
 
